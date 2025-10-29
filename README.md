@@ -18,14 +18,6 @@ Seurat (v5), SeuratObject, harmony, SeuratWrappers, batchelor, Matrix, data.tabl
 git clone https://github.com/WangLab-ComputationalBiology/SCRATCH-Batchcorrection_Evaluation.git
 cd SCRATCH-Batchcorrection_Evaluation
 
-## Architecture
-Pipeline Stages (QMD notebooks)
-Stage	Notebook	Description
-1	prep.qmd	Validate input Seurat, join layers, basic QC, choose batch var, compute PCA; write _prepped.rds
-2	integrate.qmd	Apply selected method: Harmony / RPCA / CCA / FastMNN; produce corrected reductions; write _integrated.rds
-3	evaluate.qmd	Run FindNeighbors/UMAP on both raw (PCA) and corrected reductions; compute metrics (LISI, kBET, ASW, GC); export figures & tables
-Orchestration (Nextflow components)
-
 main.nf — entrypoint
 
 subworkflows/local/SCRATCH_BC.nf — scatter/gather & method fan-out
