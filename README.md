@@ -7,7 +7,7 @@ SCRATCH-BatchCorrection_Evaluation aligns multi-sample scRNA-seq datasets and qu
 
 Nextflow ≥ 21.04.0
 Java ≥ 8
-Docker or Singularity/Apptainer
+Docker or Singularity
 Git
 
 ### R packages (handled by container):
@@ -15,7 +15,9 @@ Seurat (v5), SeuratObject, harmony, SeuratWrappers, batchelor, Matrix, data.tabl
 (kBET/LISI implementations are provided within the container; no extra setup needed.)
 
 ## Installation
+
 git clone https://github.com/WangLab-ComputationalBiology/SCRATCH-Batchcorrection_Evaluation.git
+
 cd SCRATCH-Batchcorrection_Evaluation
 
 main.nf — entrypoint
@@ -32,18 +34,18 @@ Parallelization occurs over methods and/or parameter grids when requested.
 
 ### Minimal example (Docker)
 nextflow run main.nf -profile docker \
-  --input_seurat_object /path/to/project_Azimuth_annotation_object.RDS \
+  --input_seurat_object annotation_object.RDS \
+  --input_integration_method all     
   --project_name MyBC \
-  --batch_var patient_id \
-  --integration_method all \
+  --input_target_variables   batch
   -resume
 
 ### Minimal example (Singularity)
 nextflow run main.nf -profile singularity \
-  --input_seurat_object /path/to/project_Azimuth_annotation_object.RDS \
+  --input_seurat_object annotation_object.RDS \
+  --input_integration_method all     
   --project_name MyBC \
-  --batch_var patient_id \
-  --integration_method all \
+  --input_target_variables   batch
   -resume
 
 ## Typical workflow execution
@@ -62,24 +64,14 @@ evaluate: same graph/UMAP recipe on raw PCA and corrected → compute/compare me
 --work_directory	Output root (default: ./output)
 --seed	Reproducibility (default: 1234)
 --n_threads	Threads within R chunks
---umap_npcs	NPCs for neighbors/UMAP (default auto: 25/50 based on cells)
+
 ### Inputs
 Parameter	Description
---input_seurat_object	Seurat .RDS
---batch_var	Metadata column for batches (e.g., patient_id, batch, orig.ident)
+--input_seurat_object	annotation_object.RDS
+
 ### Method selection
 Parameter	Values	Notes
---integration_method	harmony, rpca, cca, mnn, none	Single method run
---method_grid	comma list (e.g., harmony,rpca)	Run multiple methods in one go
---force_recompute	true/false	Recompute even if cache exists
-### Evaluation knobs
-Parameter	Default	Purpose
---resolution	0.25	Leiden resolution
---neighbors_k	30	k for SNN/metrics
---compute_kbet	true	Toggle kBET
---compute_lisi	true	Toggle LISI
---compute_asw	true	Silhouette (batch/biology)
---compute_gc	true	Graph connectivity
+--input_integration_method	all, harmony, rpca, cca, mnn (defualt: all)
 
 ## Expected Input
 
@@ -111,22 +103,6 @@ kBET_reject_rate,
 ASW_batch, ASW_label,
 GraphConn, PCVar_retained
 
-### Example Full Run
-nextflow run main.nf -profile singularity \
-  --input_seurat_object project_Azimuth_annotation_object.RDS \
-  --project_name Lung_BC \
-  --batch_var patient_id \
-  --method_grid all \
-  --neighbors_k 30 --resolution 0.25 \
-  -resume
-
-### Single-method RPCA (Seurat v5 IntegrateLayers)
-nextflow run main.nf -profile docker \
-  --input_seurat_object project_Azimuth_annotation_object.RDS \
-  --project_name Lung_BC \
-  --batch_var patient_id \
-  --integration_method rpca \
-  -resume
 
 
 ## Documentation
@@ -144,6 +120,5 @@ GNU General Public License v3.0. See LICENSE.
 ## Contact
 
 sazaidi@mdanderson.org
-
 lwang22@mdanderson.org
 
