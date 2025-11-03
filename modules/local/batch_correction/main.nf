@@ -4,12 +4,6 @@ process BATCHCORRECTION {
     label 'process_medium'
     container 'syedsazaidi/scratch-batchcor:V1'
 
-  // publish everything under data/ and figures/ preserving structure,
-  // and the HTML under report/
-//   publishDir "${params.outdir}/${params.project_name}", mode: 'copy', overwrite: true
-    // publishDir "${params.outdir}/${params.project_name}",
-    //         mode: 'copy',
-    //         overwrite: true
     publishDir "SCRATCH-BatchCorrection_output",
             mode: 'copy',
             overwrite: true
@@ -23,7 +17,6 @@ process BATCHCORRECTION {
     path notebook
     path config
 
-    // These are the only paths Nextflow will publish.
     output:
     path "report/${notebook.baseName}.html", emit: report,  optional: true
     path "figures/**",                     emit: figures, optional: true
@@ -37,7 +30,7 @@ process BATCHCORRECTION {
     */
     script:
 
-    // helper to single-quote values and escape any single quotes inside
+    // helper 
     def q = { v -> "'${v.toString().replace("'", "'\\''")}'" }
 
     // build flat "-P key:value" list with safe quoting for things containing commas/semicolons
@@ -71,66 +64,3 @@ process BATCHCORRECTION {
 }
 
 
-// process BATCHCORRECTION {
-
-//     tag "Performing Barch Correction"
-//     label 'process_medium'
-
-//     // container 'oandrefonseca/scratch-cnv:main'
-//     // container '/home/sazaidi/Softwares/SCRATCH-CNV-main/scratch-cnv.sif'
-//     // container 'syedsazaidi/scratch-cnv:latest'
-//     container 'syedsazaidi/scratch-batchcor:V1'
-//     publishDir "${params.outdir}/${params.project_name}", mode: 'copy', overwrite: true
-
-//     // // publishDir "${params.outdir}/${params.project_name}", mode: 'copy', overwrite: true
-//     // publishDir "${params.outdir ?: "${launchDir}/results"}/${params.project_name ?: 'project'}",
-//     //         mode: 'copy', overwrite: true
-//     cpus  4
-//     memory '16 GB'
-//     errorStrategy 'terminate'
-
-
-//     input:
-//         path(seurat_object)
-//         path(notebook)
-//         path(config)
-
-
-//     output:
-//         path("data/**")                              , emit: data,       optional: true
-//         path("figures/**")                           , emit: figures
-//         path("report/${notebook.baseName}.html")     , emit: report,     optional: true
-//         path("_freeze/${notebook.baseName}")              , emit: cache
-//         // path("_freeze/${notebook.baseName}")        , emit: cache, optional: true
-
-//     when:
-//         task.ext.when == null || task.ext.when
-    
-    
-
-//     script:
-        
-//         def param_file = task.ext.args ? "-P seurat_object:${seurat_object}  -P ${task.ext.args}" : ""
-//         // def param_file = task.ext.args ? "-P seurat_object:${seurat_object} -P reference_table:${reference_table} -P ${task.ext.args}" : ""
-//         """
-//         quarto render --execute ${notebook} ${param_file}
-//         mkdir -p figures data report
-//         """
-//     stub:
-//         def param_file = task.ext.args ? "-P seurat_object:${seurat_object}  -P ${task.ext.args}" : ""
-//         """
-//         mkdir -p data _freeze/${notebook.baseName}
-//         mkdir -p _freeze/DUMMY/figure-html
-
-//         touch _freeze/DUMMY/figure-html/FILE.png
-
-//         touch data/${params.project_name}_*.RDS
-//         # touch _freeze/${notebook.baseName}/${notebook.baseName}.html
-
-//         mkdir -p report
-//         touch report/${notebook.baseName}.html
-
-//         echo ${param_file} > _freeze/${notebook.baseName}/params.yml
-//         """
-
-// }
