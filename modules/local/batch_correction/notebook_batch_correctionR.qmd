@@ -29,7 +29,7 @@ params:
   project_object: './data/project_Azimuth_annotation_object.RDS'
   seurat_object: null
   input_seurat_object: null           # <-- used by nextflow process; preferred if set
-  target_rds: './data/Tumor_only_preprocessed.RDS'
+  target_rds: './data/NonTumor_preprocessed.RDS'
   work_directory: '.'
 
   # integration
@@ -39,11 +39,12 @@ params:
   input_batch_step: 'main'
 
   # tumor subsetting
-  include_labels: 'Epithelial'        # <-- KEEP ONLY these labels (semicolon-delimited)
-  label_candidates: 'azimuth_labels;celltype;cell_type;annotation;cell_label'
+  # include_labels: 'Epithelial'        # <-- KEEP ONLY these labels (semicolon-delimited)
+  exclude_labels: 'Epithelial'        # <-- KEEP ONLY these labels (semicolon-delimited)
+  label_candidates: 'azimuth_labels;celltype;cell_type;annotation;cell_label;celllabel'
 
   # optional: if you still keep these elsewhere, they’re ignored here
-  exclude_labels: null
+  # exclude_labels: null
   celltype_column: 'celltype'
 
   # compute knobs
@@ -83,7 +84,7 @@ input_integration_method <- tolower(params$input_integration_method)
 
 # split semicolon-delimited fields
 input_target_variables <- trimws(unlist(strsplit(params$input_target_variables, ";", fixed = TRUE)))
-include_labels         <- trimws(unlist(strsplit(params$include_labels, ";", fixed = TRUE)))
+exclude_labels         <- trimws(unlist(strsplit(params$exclude_labels, ";", fixed = TRUE)))
 label_candidates       <- trimws(unlist(strsplit(params$label_candidates, ";", fixed = TRUE)))
 
 input_batch_step <- params$input_batch_step
@@ -100,14 +101,14 @@ wd <- params$work_directory; if (is.null(wd) || !nzchar(wd)) wd <- "."
 # try(setwd(wd), silent = TRUE)
 
 knitr::opts_chunk$set(
-	echo = TRUE,
+	echo = FALSE,
 	cache = FALSE,
 	cache.lazy = FALSE
 )
 ```
 
 ```{r Libraries, error=TRUE}
-#| echo: true
+#| echo: false
 suppressPackageStartupMessages({
   library(readr); library(dplyr); library(ggplot2)
   library(Seurat); library(SeuratObject); library(SeuratWrappers)
@@ -139,7 +140,7 @@ has_red <- function(obj, nm) nm %in% names(obj@reductions)
 ```
 
 ```{r LoadFile, error=TRUE}
-#| echo: true
+#| echo: false
 stopifnot(file.exists(SOURCE_RDS))
 message("Reading: ", SOURCE_RDS)
 obj <- readRDS(SOURCE_RDS)
@@ -151,18 +152,104 @@ if (length(label_col) == 0 || is.na(label_col)) {
   stop("Could not find any label column among: ", paste(label_candidates, collapse = ", "),
        ". To proceed, set params$label_candidates accordingly.")
 }
+# 2) Identify epithelial/tumor labels to EXCLUDE (case-insensitive)
+labs_raw <- as.character(obj@meta.data[[label_col]])
+labs_lwr <- tolower(labs_raw)
+exclude_set <- tolower(exclude_labels[exclude_labels != ""])
 
-# 2) keep ONLY tumor labels (epithelial by default)
-labs <- as.character(obj@meta.data[[label_col]])
-keep_cells <- rownames(obj@meta.data)[!is.na(labs) & labs %in% include_labels]
-if (length(keep_cells) == 0L) {
-  stop("After filtering to include_labels = {", paste(include_labels, collapse=";"),
-       "} none of the cells remain. Check your label column '", label_col, "'.")
+keep_epi_cells <- rownames(obj@meta.data)[
+  !is.na(labs_lwr) & labs_lwr %in% exclude_set
+]
+
+if (length(keep_epi_cells) == 0L) {
+  message("No cells matched exclude_labels = {",
+          paste(exclude_labels, collapse = ";"),
+          "} in '", label_col, "'. Proceeding with ALL cells as non-tumor.")
+  non_tumor_cells <- colnames(obj)
+} else {
+  # EXCLUDE epithelial: keep all other cells
+  non_tumor_cells <- setdiff(colnames(obj), keep_epi_cells)
+  if (length(non_tumor_cells) == 0L) {
+    stop("All cells were labeled in exclude_labels; nothing left after exclusion.")
+  }
 }
-obj_tumor <- subset(obj, cells = keep_cells)
-message("Kept TUMOR (", paste(include_labels, collapse=";"),
-        ") via '", label_col, "': n=", ncol(obj_tumor))
 
+# Subset to NON-TUMOR
+obj_non_tumor <- subset(obj, cells = non_tumor_cells)
+
+message(
+  "Kept NON-TUMOR (excluded labels: ", paste(exclude_labels, collapse = ";"),
+  ") via '", label_col, "': n=", ncol(obj_non_tumor),
+  " (excluded=", length(setdiff(colnames(obj), non_tumor_cells)),
+  ", total=", ncol(obj), ")"
+)
+
+
+## ---------- NEW: quick post-subset summaries ----------
+cat("\n[Summary] Cell counts after excluding labels:\n")
+cat("  Total cells kept:", ncol(obj_non_tumor), "\n\n")
+
+# Counts by biological label
+tab_label <- sort(table(obj_non_tumor@meta.data[[label_col]]), decreasing = TRUE)
+print(head(tab_label, 30))
+
+# If your batch column(s) are known (from params$input_target_variables), show by-batch too
+if (all(input_target_variables %in% colnames(obj_non_tumor@meta.data))) {
+  batch_key <- if (length(input_target_variables) == 1) {
+    input_target_variables[1]
+  } else {
+    "__subset_batch__"
+  }
+  if (batch_key == "__subset_batch__") {
+    obj_non_tumor@meta.data[[batch_key]] <- apply(
+      obj_non_tumor@meta.data[, input_target_variables, drop = FALSE],
+      1, paste, collapse = "_"
+    )
+  }
+  cat("\n[Summary] Cells by batch level:\n")
+  tab_batch <- sort(table(obj_non_tumor@meta.data[[batch_key]]), decreasing = TRUE)
+  print(head(tab_batch, 30))
+
+  cat("\n[Summary] Cells by (batch x label):\n")
+  tab_bl <- sort(table(
+    obj_non_tumor@meta.data[[batch_key]],
+    obj_non_tumor@meta.data[[label_col]]
+  ), decreasing = TRUE)
+  print(head(tab_bl, 30))
+}
+## ---------- END summaries ---------
+
+
+
+# # 2) keep ONLY tumor labels (epithelial by default)
+# labs <- as.character(obj@meta.data[[label_col]])
+# 
+# keep_nonepi_cells <- rownames(obj@meta.data)[
+#   !is.na(labs) & tolower(labs) %in% tolower(exclude_labels)
+# ]
+# 
+# 
+# if (length(keep_nonepi_cells) == 0L) {
+#   stop("After filtering to exclude_labels = {", paste(exclude_labels, collapse=";"),
+#        "} none of the cells remain. Check your label column '", label_col, "'.")
+# }
+# 
+# # EXCLUDE epithelial: keep all other cells
+# non_tumor_cells <- setdiff(colnames(obj), keep_nonepi_cells)
+# if (length(non_tumor_cells) == 0L) {
+#   stop("All cells were labeled epithelial/tumor — nothing left after exclusion.")
+# }
+# 
+# obj_non_tumor <- subset(obj, cells = non_tumor_cells)
+# # obj_non_tumor     <- subset(obj, cells = keep_nonepi_cells)
+# 
+# # message("Kept TUMOR (", paste(exclude_labels, collapse=";"),
+# #         ") via '", label_col, "': n=", ncol(obj_non_tumor))
+# message(
+#   "Kept NON-TUMOR (excluded: ", paste(exclude_labels, collapse = ";"),
+#   ") via '", label_col, "': n=", ncol(obj_non_tumor),
+#   " (from total ", ncol(obj), ")"
+# )
 # (optional) free memory
 # rm(obj); invisible(gc())
 ```
@@ -170,18 +257,18 @@ message("Kept TUMOR (", paste(include_labels, collapse=";"),
 ```{r CheckPoint, error=TRUE}
 #| echo: false
 message("--- [Diagnostic] Checking duplicate names ---")
-if (any(duplicated(colnames(obj_tumor)))) {
+if (any(duplicated(colnames(obj_non_tumor)))) {
   message("Cell names duplicated: fixing…")
-  obj_tumor <- RenameCells(obj_tumor, new.names = make.unique(colnames(obj_tumor)))
+  obj_non_tumor <- RenameCells(obj_non_tumor, new.names = make.unique(colnames(obj_non_tumor)))
 } else message("Cell names OK.")
 
-da0 <- DefaultAssay(obj_tumor)
-feature_names <- rownames(obj_tumor[[da0]])
+da0 <- DefaultAssay(obj_non_tumor)
+feature_names <- rownames(obj_non_tumor[[da0]])
 if (any(duplicated(feature_names))) {
   message("Duplicate gene names: fixing…")
-  assay_data <- GetAssayData(obj_tumor, assay = da0)   # counts preferred if present
+  assay_data <- GetAssayData(obj_non_tumor, assay = da0)   # counts preferred if present
   rownames(assay_data) <- make.unique(rownames(assay_data))
-  obj_tumor[[da0]] <- CreateAssayObject(counts = assay_data)
+  obj_non_tumor[[da0]] <- CreateAssayObject(counts = assay_data)
   message("Gene names fixed.")
 } else message("Gene names OK.")
 
@@ -189,49 +276,49 @@ if (any(duplicated(feature_names))) {
 
 ```{r BatchColCheck, error=TRUE}
 #| echo: false
-if (!all(input_target_variables %in% colnames(obj_tumor@meta.data))) {
-  missing <- setdiff(input_target_variables, colnames(obj_tumor@meta.data))
+if (!all(input_target_variables %in% colnames(obj_non_tumor@meta.data))) {
+  missing <- setdiff(input_target_variables, colnames(obj_non_tumor@meta.data))
   stop("Missing batch column(s): ", paste(missing, collapse = ", "))
 }
 ```
 
 ```{r Preprocessing, error=TRUE}
 #| echo: false
-assays <- .safe_assays(obj_tumor)
+assays <- .safe_assays(obj_non_tumor)
 if (!length(assays)) stop("No assays found in object.")
-DefaultAssay(obj_tumor) <- if ("SCT" %in% assays) "SCT" else if ("RNA" %in% assays) "RNA" else assays[1]
-assay <- DefaultAssay(obj_tumor)
+DefaultAssay(obj_non_tumor) <- if ("SCT" %in% assays) "SCT" else if ("RNA" %in% assays) "RNA" else assays[1]
+assay <- DefaultAssay(obj_non_tumor)
 
 # Normalize only if RNA (SCT already normalized)
-if (assay == "RNA" && !"data" %in% .safe_layers(obj_tumor, "RNA")) {
-  obj_tumor <- NormalizeData(obj_tumor, assay = "RNA", verbose = FALSE)
+if (assay == "RNA" && !"data" %in% .safe_layers(obj_non_tumor, "RNA")) {
+  obj_non_tumor <- NormalizeData(obj_non_tumor, assay = "RNA", verbose = FALSE)
 }
 
 # HVGs
-obj_tumor <- FindVariableFeatures(obj_tumor, assay = assay, selection.method = "vst",
+obj_non_tumor <- FindVariableFeatures(obj_non_tumor, assay = assay, selection.method = "vst",
                                   nfeatures = N_HVGS, verbose = FALSE)
 
 # Scale HVGs
-hvgs <- VariableFeatures(obj_tumor, assay = assay)
-obj_tumor <- ScaleData(obj_tumor, assay = assay, features = hvgs, verbose = FALSE)
+hvgs <- VariableFeatures(obj_non_tumor, assay = assay)
+obj_non_tumor <- ScaleData(obj_non_tumor, assay = assay, features = hvgs, verbose = FALSE)
 
 # PCA
-obj_tumor <- RunPCA(obj_tumor, npcs = N_PCS, verbose = FALSE)
+obj_non_tumor <- RunPCA(obj_non_tumor, npcs = N_PCS, verbose = FALSE)
 
 cat("Summary after preprocessing:\n")
-cat("  Cells:", ncol(obj_tumor), "\n",
-    "  Assay:", DefaultAssay(obj_tumor), "\n",
-    "  HVGs :", length(VariableFeatures(obj_tumor, assay = assay)), "\n",
-    "  PCA? :", "pca" %in% Reductions(obj_tumor), " | PCs=",
-    if ("pca" %in% Reductions(obj_tumor)) ncol(Embeddings(obj_tumor, "pca")) else 0, "\n")
+cat("  Cells:", ncol(obj_non_tumor), "\n",
+    "  Assay:", DefaultAssay(obj_non_tumor), "\n",
+    "  HVGs :", length(VariableFeatures(obj_non_tumor, assay = assay)), "\n",
+    "  PCA? :", "pca" %in% Reductions(obj_non_tumor), " | PCs=",
+    if ("pca" %in% Reductions(obj_non_tumor)) ncol(Embeddings(obj_non_tumor, "pca")) else 0, "\n")
 
 # Save the preprocessed tumor-only object
-saveRDS(obj_tumor, TARGET_RDS)
-message("Wrote tumor-only preprocessed object to: ", TARGET_RDS)
+saveRDS(obj_non_tumor, TARGET_RDS)
+message("Wrote NON-tumor preprocessed object to: ", TARGET_RDS)
 
 # hand-off for integration blocks
-seurat_object <- obj_tumor
-seurat_object_eval <- obj_tumor
+seurat_object <- obj_non_tumor
+seurat_object_eval <- obj_non_tumor
 ```
 
 ```{r SeuratCheck, error=TRUE}
@@ -1650,6 +1737,7 @@ if (identical(input_integration_method, "all")) {
 ```
 
 
+
 ```{r Autosave, error=TRUE}
 #| echo: false
 if (auto_save) {
@@ -1658,7 +1746,7 @@ if (auto_save) {
 ```
 
 ```{r Parameters, error=TRUE}
-#| include: false
+#| echo: false
 print(params)
 sessionInfo()
 ```
