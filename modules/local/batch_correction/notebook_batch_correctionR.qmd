@@ -1,5 +1,5 @@
 ---
-title: "Module — Batch Correction (tumor / epithelial subset)"
+title: "Module — Batch Correction (non-tumor)"
 author: "Syed Shujaat Ali Zaidi"
 format:
   html:
@@ -28,7 +28,7 @@ params:
   project_name: 'Project'
   project_object: './data/project_Azimuth_annotation_object.RDS'
   seurat_object: null
-  input_seurat_object: null           # <-- used by nextflow process; preferred if set
+  input_seurat_object: null           
   target_rds: './data/NonTumor_preprocessed.RDS'
   work_directory: '.'
 
