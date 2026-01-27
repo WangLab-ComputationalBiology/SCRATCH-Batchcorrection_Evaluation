@@ -12,11 +12,8 @@ workflow SCRATCH_BC {
     main:
 
         // Importing notebook
-        // ch_notebook_batchcorr = Channel.fromPath(params.notebook_batchcorr, checkIfExists: true)
         ch_notebook_batchcorr  = Channel.fromPath(params.notebook_batchcorr, checkIfExists: true)
-        // ch_notebook_scevan    = Channel.fromPath(params.notebook_scevan, checkIfExists: true) 
-        // ch_notebook_copykat = Channel.fromPath(params.notebook_copykat, checkIfExists: true) 
-
+        
 
         // Quarto configurations
         ch_template    = Channel.fromPath(params.template, checkIfExists: true)
@@ -28,7 +25,7 @@ workflow SCRATCH_BC {
         // Version channel
         ch_versions = Channel.empty()
 
-        // Run inferCNV
+        // Run BatCorrection
         if (!params.skip_BatchCorr) { 
             BATCHCORRECTION(
                 ch_seurat_object,
@@ -39,19 +36,9 @@ workflow SCRATCH_BC {
         }
 
 
-
-        // // Run CopyKAT
-        // if (!params.skip_copykat) { // Added 'if' conditions back
-        //     COPYKAT(
-        //         ch_seurat_object,
-        //         ch_notebook_copykat,
-        //         ch_page_config // Pass the *original*, simple ch_page_config
-        //     )
-        // }
-
-
     emit:
         versions = ch_versions
 
 }
+
 
