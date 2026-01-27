@@ -1,8 +1,6 @@
 #!/usr/bin/env nextflow
 
 include {  BATCHCORRECTION     } from '../../modules/local/batch_correction/main.nf'
-// include {  SCEVAN       } from '../../modules/local/scevan/main.nf'
-// include { COPYKAT } from '../../modules/local/copykat/main.nf' // Re-added from your first shared code for completeness
 
 
 workflow SCRATCH_BC {
@@ -56,5 +54,4 @@ workflow SCRATCH_BC {
         versions = ch_versions
 
 }
-
 
