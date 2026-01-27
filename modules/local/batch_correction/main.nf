@@ -4,6 +4,8 @@ process BATCHCORRECTION {
     label 'process_medium'
     container 'syedsazaidi/scratch-batchcor:V1'
 
+
+  // publish everything under data/ and figures/ preserving structure,
     publishDir "SCRATCH-BatchCorrection_output",
             mode: 'copy',
             overwrite: true
@@ -17,6 +19,7 @@ process BATCHCORRECTION {
     path notebook
     path config
 
+    // These are the only paths Nextflow will publish.
     output:
     path "report/${notebook.baseName}.html", emit: report,  optional: true
     path "figures/**",                     emit: figures, optional: true
@@ -30,7 +33,7 @@ process BATCHCORRECTION {
     */
     script:
 
-    // helper 
+    // helper to single-quote values and escape any single quotes inside
     def q = { v -> "'${v.toString().replace("'", "'\\''")}'" }
 
     // build flat "-P key:value" list with safe quoting for things containing commas/semicolons
@@ -62,5 +65,4 @@ process BATCHCORRECTION {
     quarto render --execute ${notebook} ${param_file}
     """
 }
-
 
