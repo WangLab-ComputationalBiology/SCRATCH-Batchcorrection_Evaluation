@@ -3,10 +3,11 @@ process BATCHCORRECTION {
     tag "Performing Barch Correction"
     label 'process_medium'
     container 'syedsazaidi/scratch-batchcor:V1'
+    // container '/rsrch8/home/genomic_med/sazaidi/Softwares/SCRATCH_BatchCorr/SCRATCH_BatchCorrection-Evaluation/scratch_batchcorr.sif'
 
 
   // publish everything under data/ and figures/ preserving structure,
-    publishDir "SCRATCH-BatchCorrection_output",
+    publishDir "${params.outdir}",
             mode: 'copy',
             overwrite: true
 
